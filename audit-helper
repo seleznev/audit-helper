@@ -1,0 +1,196 @@
+#!/usr/bin/env python2
+# -.- coding: utf-8 -.-
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import print_function
+
+import os
+import sys
+import json
+import jinja2
+import getpass
+import argparse
+
+from collections import namedtuple
+from ansible.parsing.dataloader import DataLoader
+from ansible.vars import VariableManager
+from ansible.inventory import Inventory
+from ansible.playbook.play import Play
+from ansible.executor.task_queue_manager import TaskQueueManager
+from ansible.plugins.callback import CallbackBase
+
+# Callback object to capture the output
+class ResultsCollector(CallbackBase):
+    def __init__(self, *args, **kwargs):
+        super(ResultsCollector, self).__init__(*args, **kwargs)
+        self.host_ok = {}
+        self.host_unreachable = {}
+        self.host_failed = {}
+
+    def v2_runner_on_unreachable(self, result):
+        if not result._host.get_name() in self.host_unreachable:
+            self.host_unreachable[result._host.get_name()] = {}
+        self.host_unreachable[result._host.get_name()][result._task.get_name()] = result
+
+    def v2_runner_on_ok(self, result,  *args, **kwargs):
+        if not result._host.get_name() in self.host_ok:
+            self.host_ok[result._host.get_name()] = {}
+        self.host_ok[result._host.get_name()][result._task.get_name()] = result
+
+    def v2_runner_on_failed(self, result,  *args, **kwargs):
+        if not result._host.get_name() in self.host_failed:
+            self.host_failed[result._host.get_name()] = {}
+        self.host_failed[result._host.get_name()][result._task.get_name()] = result
+
+def ask_passwords():
+    password = None
+
+    try:
+        password = getpass.getpass(prompt="SSH password: ")
+    except EOFError:
+        pass
+
+    return password
+
+def print_error(*message):
+    print("{}: {}" .format(os.path.basename(__file__), ": ".join(list(message))), file=sys.stderr)
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--version", action="version", version="%(prog)s 0.0.1",
+                        help="print program version")
+    parser.add_argument("-v", "--verbose", action="count", default=0,
+                        help="increase output verbosity")
+    parser.add_argument("-t", "--template", help="path to report template",
+                        default="report.j2")
+    parser.add_argument("-k", "--ask-pass", action="store_true",
+                        help="ask for connection password")
+    parser.add_argument("[user@]hostname",
+                        help="user and host to connect")
+    args = parser.parse_args()
+
+    verbosity = args.verbose
+
+    template_path = args.template
+    if not os.path.exists(template_path):
+        print_error(template_path, "No such file or directory")
+        sys.exit(1)
+
+    remote = vars(args)["[user@]hostname"]
+    if "@" in remote:
+        (remote_user, remote_host) = remote.split("@")
+    else:
+        (remote_user, remote_host) = (getpass.getuser(), remote)
+
+    if args.ask_pass:
+        remote_password = ask_passwords()
+    else:
+        remote_password = None
+
+    # Options tuple
+    Options = namedtuple("Options", ["connection", "module_path", "forks",
+                                     "become", "become_method", "become_user",
+                                     "remote_user", "private_key_file",
+                                     "ssh_common_args", "ssh_extra_args",
+                                     "sftp_extra_args", "scp_extra_args",
+                                     "verbosity", "check"])
+
+    # Initialize needed objects
+    variable_manager = VariableManager()
+    loader = DataLoader()
+    options = Options(connection="smart", module_path="modules", forks=100,
+                      #become=None, become_method=None, become_user=None,
+                      become=True, become_method="sudo", become_user="root",
+                      remote_user=remote_user, private_key_file=None,
+                      ssh_common_args=None, ssh_extra_args=None,
+                      sftp_extra_args=None, scp_extra_args=None,
+                      verbosity=verbosity, check=False)
+
+    passwords = {"conn_pass": remote_password, "become_pass": None}
+
+    # Create inventory and pass to var manager
+    inventory = Inventory(loader=loader, variable_manager=variable_manager, host_list=[remote_host])
+    variable_manager.set_inventory(inventory)
+
+    # Create tasks list
+    tasks = [
+        dict(action=dict(module="setup")),
+    ]
+    for entry in os.listdir("modules/"):
+        (name, extension) = os.path.splitext(entry)
+        if extension == ".py":
+            tasks.append(dict(action=dict(module=name)))
+
+    # Create play with tasks
+    play_source = {
+        "name": "Ansible Play",
+        "hosts": [remote_host],
+        "gather_facts": "no",
+        "tasks": tasks
+    }
+    play = Play().load(play_source, variable_manager=variable_manager, loader=loader)
+
+    # Actually run it
+    tqm = None
+    callback = ResultsCollector()
+    try:
+        tqm = TaskQueueManager(
+                  inventory=inventory,
+                  variable_manager=variable_manager,
+                  loader=loader,
+                  options=options,
+                  passwords=passwords,
+                  stdout_callback=callback,
+              )
+        result = tqm.run(play)
+    finally:
+        if tqm is not None:
+            tqm.cleanup()
+
+    # Print error messages
+    for host, results in callback.host_failed.items():
+        for task, result in results.items():
+            print_error(host, task, result._result["msg"])
+
+            if "module_stdout" in result._result:
+                print(result._result["module_stdout"], file=sys.stderr)
+
+    for host, results in callback.host_unreachable.items():
+        for task, result in results.items():
+            print_error(host, task, result._result["msg"])
+
+    if len(callback.host_failed) or len(callback.host_unreachable):
+        sys.exit(2)
+
+    # Create report
+    for host, results in callback.host_ok.items():
+        report = ""
+
+        with open(template_path, "r") as file:
+            facts = {}
+            for module, data in results.items():
+                facts[module] = results[module]._result["ansible_facts"]
+
+            report = jinja2.Template(file.read().decode("utf-8"), trim_blocks=True, lstrip_blocks=True)
+            try:
+                report = report.render(host=host, **facts).encode("utf-8")
+            except jinja2.exceptions.UndefinedError as e:
+                print_error("jinja2", e.message)
+                sys.exit(3)
+
+        print(report.strip("\n"))
+
+if __name__ == "__main__":
+    main()
