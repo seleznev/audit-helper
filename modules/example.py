@@ -14,23 +14,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
-import subprocess
-
 def main():
     module = AnsibleModule(
         argument_spec = {}
     )
-    facts = {}
 
-    cmd = ["uname", "-a"]
-    try:
-        facts["uname"] = subprocess.check_output(cmd, stderr=subprocess.STDOUT,
-                                                 universal_newlines=True)
-    except Exception, e:
-        module.fail_json(msg="unable to launch uname. Exception message: {}".format(e))
+    (rc, out, err) = module.run_command("uname -a", check_rc=True)
 
-    module.exit_json(changed=False, ansible_facts=facts)
+    module.exit_json(changed=False, ansible_facts={"uname": out})
 
 from ansible.module_utils.basic import *
 if __name__ == "__main__":
