@@ -178,11 +178,11 @@ def main():
     for host, results in callback.host_ok.items():
         report = ""
 
-        with open(template_path, "r") as file:
-            facts = {}
-            for module, data in results.items():
-                facts[module] = results[module]._result["ansible_facts"]
+        facts = {}
+        for module, data in results.items():
+            facts[module.replace("-", "_")] = results[module]._result["ansible_facts"]
 
+        with open(template_path, "r") as file:
             report = jinja2.Template(file.read().decode("utf-8"), trim_blocks=True, lstrip_blocks=True)
             try:
                 report = report.render(host=host, **facts).encode("utf-8")
