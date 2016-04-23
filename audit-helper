@@ -166,8 +166,10 @@ def main():
         for task, result in results.items():
             print_error(host, task, result._result["msg"])
 
-            if "module_stdout" in result._result:
-                print(result._result["module_stdout"], file=sys.stderr)
+            for key in ["module_stdout", "module_stderr", "exception"]:
+                if key in result._result:
+                    print(result._result[key].strip("\n"), file=sys.stderr)
+                    break
 
     for host, results in callback.host_unreachable.items():
         for task, result in results.items():
