@@ -65,7 +65,9 @@ def ask_passwords():
     return password
 
 def print_error(*message):
-    print("{}: {}" .format(os.path.basename(__file__), ": ".join(list(message))), file=sys.stderr)
+    print("{}: {}" .format(os.path.basename(__file__),
+                           ": ".join(list(message)).encode("utf-8")),
+                           file=sys.stderr)
 
 def main():
     parser = argparse.ArgumentParser()
