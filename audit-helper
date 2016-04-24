@@ -19,7 +19,6 @@ from __future__ import print_function
 import os
 import sys
 import json
-import jinja2
 import getpass
 import argparse
 
@@ -30,6 +29,7 @@ from ansible.inventory import Inventory
 from ansible.playbook.play import Play
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.plugins.callback import CallbackBase
+from ansible.template import Templar
 
 # Callback object to capture the output
 class ResultsCollector(CallbackBase):
@@ -187,11 +187,14 @@ def main():
             facts[module.replace("-", "_")] = results[module]._result["ansible_facts"]
 
         with open(template_path, "r") as file:
-            report = jinja2.Template(file.read().decode("utf-8"), trim_blocks=True, lstrip_blocks=True)
+            templar = Templar(loader=loader, variables=facts)
             try:
-                report = report.render(host=host, **facts).encode("utf-8")
-            except jinja2.exceptions.UndefinedError as e:
-                print_error("jinja2", e.message)
+                report = templar.template(file.read().decode("utf-8"),
+                                          preserve_trailing_newlines=True,
+                                          escape_backslashes=False,
+                                          convert_data=False).encode("utf-8")
+            except Exception as e:
+                print_error("template", e.message)
                 sys.exit(3)
 
         print(report.strip("\n"))
