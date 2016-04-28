@@ -20,7 +20,7 @@ def main():
     )
 
     (rc, out, err) = module.run_command("uname -a", check_rc=True)
-    facts = {"uname": out}
+    facts = {"uname": out.strip("\n")}
 
     module.exit_json(changed=False, ansible_facts={"audit_example": facts})
 
