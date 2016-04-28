@@ -20,8 +20,9 @@ def main():
     )
 
     (rc, out, err) = module.run_command("uname -a", check_rc=True)
+    facts = {"uname": out}
 
-    module.exit_json(changed=False, ansible_facts={"uname": out})
+    module.exit_json(changed=False, ansible_facts={"audit_example": facts})
 
 from ansible.module_utils.basic import *
 if __name__ == "__main__":

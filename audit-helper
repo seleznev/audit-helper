@@ -184,7 +184,7 @@ def main():
 
         facts = {}
         for module, data in results.items():
-            facts[module.replace("-", "_")] = results[module]._result["ansible_facts"]
+            facts.update(results[module]._result["ansible_facts"])
 
         with open(template_path, "r") as file:
             templar = Templar(loader=loader, variables=facts)
