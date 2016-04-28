@@ -77,8 +77,8 @@ def main():
                         help="increase output verbosity")
     parser.add_argument("--exclude-module", action="append",
                         help="exclude module by name")
-    parser.add_argument("-t", "--template", help="path to report template",
-                        default="report.j2")
+    parser.add_argument("-t", "--template", default="report.j2",
+                        help="path to report template (default: %(default)s)")
     parser.add_argument("-k", "--ask-pass", action="store_true",
                         help="ask for connection password")
     parser.add_argument("server", metavar="user@hostname",
