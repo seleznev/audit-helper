@@ -75,12 +75,14 @@ def main():
                         help="print program version")
     parser.add_argument("-v", "--verbose", action="count", default=0,
                         help="increase output verbosity")
+    parser.add_argument("--exclude-module", action="append",
+                        help="exclude module by name")
     parser.add_argument("-t", "--template", help="path to report template",
                         default="report.j2")
     parser.add_argument("-k", "--ask-pass", action="store_true",
                         help="ask for connection password")
-    parser.add_argument("[user@]hostname",
-                        help="user and host to connect")
+    parser.add_argument("server", metavar="user@hostname",
+                        help="user (optional) and host to connect")
     args = parser.parse_args()
 
     verbosity = args.verbose
@@ -90,7 +92,7 @@ def main():
         print_error(template_path, "No such file or directory")
         sys.exit(1)
 
-    remote = vars(args)["[user@]hostname"]
+    remote = vars(args)["server"]
     if "@" in remote:
         (remote_user, remote_host) = remote.split("@")
     else:
@@ -128,12 +130,15 @@ def main():
 
     # Create tasks list
     tasks = [
-        dict(action=dict(module="setup")),
+        {"action": {"module": "setup"}},
     ]
     for entry in os.listdir("modules/"):
         (name, extension) = os.path.splitext(entry)
+        if args.exclude_module and name in args.exclude_module:
+            continue
+
         if extension == ".py":
-            tasks.append(dict(action=dict(module=name)))
+            tasks.append({"action": {"module": name}})
 
     # Create play with tasks
     play_source = {
