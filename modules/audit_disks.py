@@ -16,10 +16,10 @@
 
 DOCUMENTATION = '''
 ---
-module: audit-iptables
-short_description: Get current iptables settings
+module: audit_disks
+short_description: Report file system disk space usage
 description:
-     - Get current iptables settings.
+     - Report file system disk space usage.
 author:
     - "Aleksandr Seleznev (@seleznev)"
 '''
@@ -27,9 +27,12 @@ author:
 def main():
     module = AnsibleModule({})
 
-    (rc, out, err) = module.run_command("iptables -L -n", check_rc=True)
+    disks = {}
 
-    module.exit_json(changed=False, ansible_facts={"audit_iptables": out.strip("\n")})
+    (rc, out, err) = module.run_command("df --human --print-type", check_rc=True)
+    disks["fs"] = {"usage": out.strip("\n")}
+
+    module.exit_json(changed=False, ansible_facts={"audit_disks": disks})
 
 from ansible.module_utils.basic import *
 if __name__ == "__main__":

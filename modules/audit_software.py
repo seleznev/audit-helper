@@ -22,7 +22,7 @@
 
 DOCUMENTATION = '''
 ---
-module: audit-software
+module: audit_software
 short_description: Get a list of installed software
 description:
      - Get a list of installed software.

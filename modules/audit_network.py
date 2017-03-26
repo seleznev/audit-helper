@@ -16,7 +16,7 @@
 
 DOCUMENTATION = '''
 ---
-module: audit-network
+module: audit_network
 short_description: Get information about network settings
 description:
      - Get information about network interfaces, routing tables and

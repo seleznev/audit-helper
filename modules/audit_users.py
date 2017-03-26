@@ -16,7 +16,7 @@
 
 DOCUMENTATION = '''
 ---
-module: audit-users
+module: audit_users
 short_description: Get a list of system users
 description:
      - Get a list of system users.
