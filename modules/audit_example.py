@@ -16,7 +16,7 @@
 
 DOCUMENTATION = '''
 ---
-module: audit-example
+module: audit_example
 short_description: Example module for audit-helper
 description:
      - Example module for audit-helper that return result of
